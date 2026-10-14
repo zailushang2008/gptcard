@@ -127,6 +127,46 @@ func (s Service) SaveAnnouncement(ctx context.Context, token string, in Announce
 		return audit(ctx, tx, p, "partner-announcement", p.Subject, map[string]any{"enabled": *in.Enabled, "version": *in.Version + 1})
 	})
 }
+// PlatformAnnouncement reads the platform storefront announcement (owner "platform").
+func (s Service) PlatformAnnouncement(ctx context.Context) (map[string]any, error) {
+	out, e := rows(ctx, s.Store.DB, "SELECT enabled,placement,title,content,version FROM platform_announcements WHERE owner='platform'")
+	if e != nil {
+		return nil, e
+	}
+	if len(out) == 0 {
+		return map[string]any{"enabled": false, "placement": "home", "title": "站点公告", "content": "", "version": int64(0)}, nil
+	}
+	return out[0], nil
+}
+
+// SavePlatformAnnouncement is the admin counterpart of SaveAnnouncement for the platform shop.
+func (s Service) SavePlatformAnnouncement(ctx context.Context, token string, in Announcement) error {
+	if in.Enabled == nil || in.Version == nil || *in.Version < 0 || (in.Placement != "home" && in.Placement != "product" && in.Placement != "both") || !validText(in.Title, 80) || !validText(in.Content, 5000) || (*in.Enabled && (strings.TrimSpace(in.Title) == "" || strings.TrimSpace(in.Content) == "")) {
+		return fault.New(400, "公告内容或版本无效。")
+	}
+	return s.write(ctx, "admin", token, func(tx pgx.Tx, p auth.Principal) error {
+		var current int64
+		e := tx.QueryRow(ctx, "SELECT version FROM platform_announcements WHERE owner='platform' FOR UPDATE").Scan(&current)
+		if errors.Is(e, pgx.ErrNoRows) {
+			if *in.Version != 0 {
+				return conflict()
+			}
+			_, e = tx.Exec(ctx, "INSERT INTO platform_announcements(owner,enabled,placement,title,content,version) VALUES('platform',$1,$2,$3,$4,1)", *in.Enabled, in.Placement, strings.TrimSpace(in.Title), strings.TrimSpace(in.Content))
+		} else {
+			if e != nil {
+				return e
+			}
+			if current != *in.Version {
+				return conflict()
+			}
+			_, e = tx.Exec(ctx, "UPDATE platform_announcements SET enabled=$1,placement=$2,title=$3,content=$4,version=version+1,updated_at=now() WHERE owner='platform'", *in.Enabled, in.Placement, strings.TrimSpace(in.Title), strings.TrimSpace(in.Content))
+		}
+		if e != nil {
+			return e
+		}
+		return audit(ctx, tx, p, "platform-announcement", "platform", map[string]any{"enabled": *in.Enabled, "version": *in.Version + 1})
+	})
+}
 func (s Service) Partner(ctx context.Context, id string) (map[string]any, error) {
 	out, e := rows(ctx, s.Store.DB, "SELECT id,name,email,slug,active::int,version,(extract(epoch FROM created_at)*1000)::bigint AS created_at FROM partners WHERE id=$1", id)
 	if e != nil {

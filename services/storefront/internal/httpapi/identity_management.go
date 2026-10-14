@@ -333,6 +333,19 @@ func register(r *gin.Engine, s *store.Store, opts Options) {
 	}
 	admin.POST("/plans", savePlan(true))
 	admin.POST("/plans/:id", savePlan(false))
+	admin.POST("/plans/:id/delete", func(c *gin.Context) {
+		var in struct {
+			Note string `json:"note"`
+		}
+		if !read(c, &in) {
+			return
+		}
+		if e := m.DeletePlan(c.Request.Context(), token(c, "admin"), c.Param("id"), in.Note); e != nil {
+			fail(c, e)
+			return
+		}
+		c.JSON(200, gin.H{"ok": true})
+	})
 	admin.GET("/partners", func(c *gin.Context) {
 		out, total, e := m.Partners(c.Request.Context(), page(c), c.Query("q"))
 		if e != nil {
@@ -461,6 +474,26 @@ func register(r *gin.Engine, s *store.Store, opts Options) {
 	}
 	partner.GET("/announcement", announcement)
 	partner.POST("/announcement", announcement)
+	platformAnnouncement := func(c *gin.Context) {
+		if c.Request.Method == "POST" {
+			var in management.Announcement
+			if !read(c, &in) {
+				return
+			}
+			if e := m.SavePlatformAnnouncement(c.Request.Context(), token(c, "admin"), in); e != nil {
+				fail(c, e)
+				return
+			}
+		}
+		out, e := m.PlatformAnnouncement(c.Request.Context())
+		if e != nil {
+			fail(c, e)
+			return
+		}
+		c.JSON(200, out)
+	}
+	admin.GET("/announcement", platformAnnouncement)
+	admin.POST("/announcement", platformAnnouncement)
 	admin.GET("/audit", func(c *gin.Context) {
 		out, e := m.Audit(c.Request.Context(), page(c))
 		if e != nil {

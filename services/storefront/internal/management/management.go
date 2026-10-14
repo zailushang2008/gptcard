@@ -200,6 +200,41 @@ func (s Service) SavePlan(ctx context.Context, token, id string, in PlanInput, c
 	})
 }
 
+// DeletePlan removes a plan that has never been ordered. Plans with order,
+// subscription, or cost history must stay for audit integrity; disable them instead.
+func (s Service) DeletePlan(ctx context.Context, token, id, note string) error {
+	if !identifier.MatchString(id) || strings.TrimSpace(note) == "" || !validText(note, 500) {
+		return fault.New(400, "请填写操作说明。")
+	}
+	return s.writeHierarchy(ctx, "admin", token, func(tx pgx.Tx, p auth.Principal) error {
+		before, e := snapshot(ctx, tx, "catalog_plans", id)
+		if e != nil {
+			return e
+		}
+		if before == nil {
+			return fault.New(404, "套餐不存在。")
+		}
+		var used bool
+		if e = tx.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM orders WHERE plan=$1) OR EXISTS(SELECT 1 FROM crm_subscriptions WHERE plan=$1) OR EXISTS(SELECT 1 FROM accounting_costs WHERE plan=$1)", id).Scan(&used); e != nil {
+			return e
+		}
+		if used {
+			return fault.New(409, "该套餐已有订单或账务记录，不能删除；如不再销售请改为暂停。")
+		}
+		for _, sql := range []string{
+			"DELETE FROM coupon_targets WHERE plan=$1",
+			"DELETE FROM store_prices WHERE plan=$1",
+			"DELETE FROM partner_prices WHERE plan=$1",
+			"DELETE FROM catalog_plans WHERE id=$1",
+		} {
+			if _, e = tx.Exec(ctx, sql, id); e != nil {
+				return e
+			}
+		}
+		return audit(ctx, tx, p, "plan-delete", id, map[string]any{"note": strings.TrimSpace(note), "before": before})
+	})
+}
+
 func (s Service) CreatePartner(ctx context.Context, token, email string) (string, string, error) {
 	email, e := auth.Email(email)
 	if e != nil {

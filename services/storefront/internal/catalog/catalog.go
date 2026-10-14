@@ -197,6 +197,15 @@ func (s Service) Read(ctx context.Context, slug string) (Response, error) {
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return out, err
 	}
+	if out.Partner == nil {
+		a := &Announcement{Enabled: true}
+		err = tx.QueryRow(ctx, "SELECT placement,title,content,version FROM platform_announcements WHERE owner='platform' AND enabled").Scan(&a.Placement, &a.Title, &a.Content, &a.Version)
+		if err == nil {
+			out.Announcement = a
+		} else if !errors.Is(err, pgx.ErrNoRows) {
+			return out, err
+		}
+	}
 	if out.Partner != nil {
 		a := &Announcement{Enabled: true}
 		err = tx.QueryRow(ctx, "SELECT placement,title,content,version FROM partner_announcements WHERE partner_id=$1 AND enabled", owner).Scan(&a.Placement, &a.Title, &a.Content, &a.Version)

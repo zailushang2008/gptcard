@@ -26,11 +26,12 @@ function hiddenToday(shop: string) {
 export function StoreAnnouncement({ announcement, shop, page, blocked = false }: { announcement?: AnnouncementSettings | null; shop?: string; page: string; blocked?: boolean }) {
   const [dismissed, setDismissed] = useState<string[]>([])
   const [hideToday, setHideToday] = useState(false)
-  const key = `${shop}:${announcementDay()}:${announcement?.version}`
-  const open = Boolean(shop && announcement && announcementApplies(announcement, page) && !blocked && !dismissed.includes(key) && !hiddenToday(shop))
+  const scope = shop || 'platform'
+  const key = `${scope}:${announcementDay()}:${announcement?.version}`
+  const open = Boolean(announcement && announcementApplies(announcement, page) && !blocked && !dismissed.includes(key) && !hiddenToday(scope))
   function close() {
-    if (hideToday && shop) {
-      try { hideAnnouncementToday(localStorage, shop) } catch { /* Private browsing may block access to storage. */ }
+    if (hideToday) {
+      try { hideAnnouncementToday(localStorage, scope) } catch { /* Private browsing may block access to storage. */ }
     }
     setDismissed(previous => [...previous, key]); setHideToday(false)
   }
