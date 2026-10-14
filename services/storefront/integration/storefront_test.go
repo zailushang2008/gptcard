@@ -181,7 +181,9 @@ func TestMigrationsAndRestrictedRuntime(t *testing.T) {
 	if err := owner.VerifyRuntime(ctx); err == nil {
 		t.Fatal("privileged runtime accepted")
 	}
-	for _, sql := range []string{"DELETE FROM storefront_migrations", "CREATE TABLE forbidden(id int)", "DELETE FROM catalog_plans", "DELETE FROM audit_events", "UPDATE audit_events SET action='tamper'", "DELETE FROM worker_heartbeats"} {
+	// catalog_plans, partner_prices and store_prices legitimately allow DELETE for
+	// admin-initiated plan removal; audit and migration history stay immutable.
+	for _, sql := range []string{"DELETE FROM storefront_migrations", "CREATE TABLE forbidden(id int)", "DELETE FROM audit_events", "UPDATE audit_events SET action='tamper'", "DELETE FROM worker_heartbeats", "DELETE FROM orders"} {
 		if _, err := app.DB.Exec(ctx, sql); err == nil {
 			t.Fatalf("runtime unexpectedly allowed: %s", sql)
 		}

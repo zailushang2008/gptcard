@@ -118,7 +118,7 @@ ALTER TABLE partners DROP COLUMN parent_id,DROP COLUMN can_recruit;
 ALTER TABLE partner_prices DROP COLUMN enabled;
 ALTER TABLE partner_debits DROP CONSTRAINT partner_debits_beneficiary_refund;
 ALTER TABLE partner_debits ADD CONSTRAINT partner_debits_refund_id_key UNIQUE(refund_id);
-DROP TABLE partner_branding; DROP TABLE partner_domains; DROP TABLE telegram_group_moderation; DROP TABLE recharge_credentials;
+DROP TABLE partner_branding; DROP TABLE partner_domains; DROP TABLE telegram_group_moderation; DROP TABLE recharge_credentials; DROP TABLE platform_announcements;
 ALTER TABLE auth_challenges DROP COLUMN domain_scope;
 ALTER TABLE auth_sessions DROP COLUMN domain_scope;
 ALTER TABLE catalog_plans DROP COLUMN supports_warranty;
