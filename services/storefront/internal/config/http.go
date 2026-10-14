@@ -5,6 +5,7 @@ import (
 	"net/netip"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 
 	"gptibo/storefront/internal/access"
@@ -144,16 +145,37 @@ func LoadHTTP() (HTTP, error) {
 		if h.Auth.Secret == "" {
 			return h, errors.New("AUTH_SECRET required before enabling mail")
 		}
-		key, e := Secret("RESEND_API_KEY")
-		if e != nil {
-			return h, e
+		if os.Getenv("SMTP_HOST") != "" {
+			port := 465
+			if raw := os.Getenv("SMTP_PORT"); raw != "" {
+				value, e := strconv.Atoi(raw)
+				if e != nil {
+					return h, errors.New("SMTP_PORT must be a number")
+				}
+				port = value
+			}
+			password, e := optionalSecret("SMTP_PASSWORD")
+			if e != nil {
+				return h, e
+			}
+			sender, e := mailer.NewSMTP(os.Getenv("SMTP_HOST"), port, os.Getenv("SMTP_USERNAME"), password, os.Getenv("MAIL_FROM"))
+			if e != nil {
+				return h, e
+			}
+			h.Auth.Sender = sender
+			sender.Origin = h.Origin
+		} else {
+			key, e := Secret("RESEND_API_KEY")
+			if e != nil {
+				return h, e
+			}
+			sender, e := mailer.NewResend(key, os.Getenv("MAIL_FROM"))
+			if e != nil {
+				return h, e
+			}
+			h.Auth.Sender = sender
+			sender.Origin = h.Origin
 		}
-		sender, e := mailer.NewResend(key, os.Getenv("MAIL_FROM"))
-		if e != nil {
-			return h, e
-		}
-		h.Auth.Sender = sender
-		sender.Origin = h.Origin
 	}
 	return h, nil
 }

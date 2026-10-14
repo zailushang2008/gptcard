@@ -30,27 +30,10 @@ func NewResend(key, from string) (*Resend, error) {
 	return &Resend{key: key, from: from, client: &http.Client{Timeout: 8 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}, Origin: "http://127.0.0.1:8093"}, nil
 }
 func (r *Resend) SendCode(ctx context.Context, role, to, code, id string) error {
-	labels := map[string]string{"admin": "admin-login", "partner": "partner-login", "customer": "order-recovery"}
-	label, ok := labels[role]
-	if !ok {
-		return errors.New("unsupported email kind")
-	}
-	message, e := BrandedTemplate(label, ContextBrand(ctx, r.Origin), map[string]string{"VERIFICATION_CODE": code})
-	if e != nil {
-		return e
-	}
-	_, e = r.SendMessage(ctx, to, message, "storefront-auth/"+id)
-	return e
+	return sendCode(ctx, r, r.Origin, role, to, code, id)
 }
 func (r *Resend) SendInvitation(ctx context.Context, to, origin, id string) error {
-	brand := ContextBrand(ctx, r.Origin)
-	brand.WorkspaceURL = strings.TrimRight(origin, "/") + "/join"
-	message, e := BrandedTemplate("partner-welcome", brand, nil)
-	if e != nil {
-		return e
-	}
-	_, e = r.SendMessage(ctx, to, message, "storefront-invitation/"+id)
-	return e
+	return sendInvitation(ctx, r, r.Origin, to, origin, id)
 }
 func (r *Resend) SendMessage(ctx context.Context, to string, message Message, idempotencyKey string) (string, error) {
 	body, e := r.Freeze(to, message)
@@ -71,20 +54,7 @@ type Frozen struct {
 }
 
 func (r *Resend) Freeze(to string, message Message) (string, error) {
-	if _, e := mail.ParseAddress(to); e != nil {
-		return "", errors.New("invalid recipient")
-	}
-	from := r.from
-	if message.SenderName != "" {
-		if len(message.SenderName) > 512 || strings.ContainsFunc(message.SenderName, unicode.IsControl) {
-			return "", errors.New("invalid mail display name")
-		}
-		address, _ := mail.ParseAddress(r.from)
-		address.Name = message.SenderName
-		from = address.String()
-	}
-	body, e := json.Marshal(Frozen{From: from, To: []string{to}, Message: message})
-	return string(body), e
+	return freezeBody(r.from, to, message)
 }
 
 func (r *Resend) SendFrozen(ctx context.Context, body, idempotencyKey string) (string, error) {

@@ -21,6 +21,8 @@ docker compose up -d --wait api worker
 
 `compose.auth.yaml` 可选启用管理员/邮件：配置 `ADMIN_USERNAME`、`ADMIN_EMAIL`、`MAIL_FROM`，自行生成 `.secrets/admin-totp` 并保存 `.secrets/resend-key`，再叠加该 Compose 文件。不要使用测试中的固定认证向量。
 
+发信默认使用 Resend（凭据在 `.secrets/resend-key`）。如需改用标准 SMTP 服务器（ZeptoMail、Zoho、QQ 邮箱等），在 `.env` 中设置 `SMTP_HOST`、`SMTP_PORT`（默认 465 隐式 TLS；其他端口要求服务器支持 STARTTLS）、`SMTP_USERNAME`、`SMTP_PASSWORD`，配置后自动跳过 Resend。Docker secrets 要求 `.secrets/resend-key` 文件始终存在，使用 SMTP 时写入占位内容即可。
+
 其他接入参数见 `.env.integrations.example`。复制为 `.env.integrations` 后可叠加 `compose.integrations.yaml`；所有开关默认关闭，匿名适配器的保留域名无法用于真实交易。必须先按自己的上游协议完成开发和测试，不能直接填生产秘密试运行。可选域名配置在 `compose.domains.yaml`，仅使用自己新建的云资源。
 
 ## 原生开发
